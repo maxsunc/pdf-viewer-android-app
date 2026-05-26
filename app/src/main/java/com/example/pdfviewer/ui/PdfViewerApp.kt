@@ -31,6 +31,7 @@ import com.example.pdfviewer.ui.viewer.PdfViewerScreen
 fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
     val recents by viewModel.recents.collectAsState()
     val viewerState by viewModel.viewerState.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
 
     val picker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -47,14 +48,24 @@ fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
             state = viewerState!!,
             onExit = { viewModel.closeViewer() },
             onUpdateProgress = { viewModel.updateProgress(it) },
-            onModeChange = { viewModel.updateMode(it) }
+            onModeChange = { viewModel.updateMode(it) },
+            themeMode = themeMode,
+            onThemeChange = viewModel::updateTheme
         )
         return
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("PDF Viewer") })
+            TopAppBar(
+                title = { Text("PDF Viewer") },
+                actions = {
+                    ThemeMenuAction(
+                        themeMode = themeMode,
+                        onThemeChange = viewModel::updateTheme
+                    )
+                }
+            )
         }
     ) { padding ->
         Column(

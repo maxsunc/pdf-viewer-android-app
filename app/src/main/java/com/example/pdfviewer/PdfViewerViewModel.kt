@@ -6,7 +6,9 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pdfviewer.data.RecentStore
+import com.example.pdfviewer.data.ThemeStore
 import com.example.pdfviewer.model.DocumentProgress
+import com.example.pdfviewer.model.ThemeMode
 import com.example.pdfviewer.model.ViewMode
 import com.example.pdfviewer.ui.viewer.ViewerState
 import com.example.pdfviewer.util.getDisplayName
@@ -19,6 +21,7 @@ import kotlinx.coroutines.launch
 
 class PdfViewerViewModel(application: Application) : AndroidViewModel(application) {
     private val store = RecentStore(application)
+    private val themeStore = ThemeStore(application)
 
     private val recentsState = store.recentsFlow.stateIn(
         scope = viewModelScope,
@@ -29,6 +32,11 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState: StateFlow<ViewerState?> = _viewerState.asStateFlow()
+    val themeMode: StateFlow<ThemeMode> = themeStore.themeModeFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.Eagerly,
+        initialValue = ThemeMode.LIGHT
+    )
     private var lastPageInSession: Int = 0
     private var lastPageCountInSession: Int = 0
 
@@ -90,6 +98,12 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
                     lastAccessed = System.currentTimeMillis()
                 )
             )
+        }
+    }
+
+    fun updateTheme(mode: ThemeMode) {
+        viewModelScope.launch {
+            themeStore.setThemeMode(mode)
         }
     }
 
