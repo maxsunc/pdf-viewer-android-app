@@ -5,7 +5,12 @@ package com.example.pdfviewer.ui.viewer
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,9 +37,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.consumePositionChange
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pdfviewer.model.DocumentProgress
@@ -222,12 +235,59 @@ private fun PagedViewer(
 
 @Composable
 private fun PdfPageImage(bitmap: Bitmap) {
-    Image(
-        bitmap = bitmap.asImageBitmap(),
-        contentDescription = null,
-        modifier = Modifier.fillMaxWidth(),
-        contentScale = ContentScale.FillWidth
-    )
+    var scale by remember { mutableStateOf(MinZoom) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onSizeChanged { size ->
+                containerSize = size
+                if (scale > MinZoom) {
+                    offset = clampOffset(offset, scale, size)
+                }
+            }
+            .clipToBounds()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var gestureActive = true
+                    while (gestureActive) {
+                        val event = awaitPointerEvent()
+                        val zoomChange = event.calculateZoom()
+                        val panChange = event.calculatePan()
+                        val shouldConsume = event.changes.size > 1 || scale > MinZoom
+                        if (shouldConsume) {
+                            val newScale = (scale * zoomChange).coerceIn(MinZoom, MaxZoom)
+                            val newOffset = clampOffset(offset + panChange, newScale, containerSize)
+                            scale = newScale
+                            offset = if (newScale == MinZoom) Offset.Zero else newOffset
+                            event.changes.forEach { change ->
+                                if (change.positionChanged()) {
+                                    change.consumePositionChange()
+                                }
+                            }
+                        }
+                        gestureActive = event.changes.any { it.pressed }
+                    }
+                }
+            }
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+            contentScale = ContentScale.FillWidth
+        )
+    }
 }
 
 @Composable
@@ -242,6 +302,21 @@ private fun PlaceholderPage() {
     ) {
         Text("Loading...")
     }
+}
+
+private const val MinZoom = 1f
+private const val MaxZoom = 4f
+
+private fun clampOffset(offset: Offset, scale: Float, size: IntSize): Offset {
+    if (scale <= MinZoom || size.width == 0 || size.height == 0) {
+        return Offset.Zero
+    }
+    val maxX = (size.width * (scale - 1f) / 2f).coerceAtLeast(0f)
+    val maxY = (size.height * (scale - 1f) / 2f).coerceAtLeast(0f)
+    return Offset(
+        x = offset.x.coerceIn(-maxX, maxX),
+        y = offset.y.coerceIn(-maxY, maxY)
+    )
 }
 
 @Composable
