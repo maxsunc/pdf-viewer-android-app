@@ -51,6 +51,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.consumePositionChange
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -234,6 +235,8 @@ private fun PagedViewer(
     onRequest: (Int) -> Unit
 ) {
     val pagerState = rememberPagerStateSafe(initialPage, pageCount)
+    val scope = rememberCoroutineScope()
+    val edgeWidthPx = with(LocalDensity.current) { EdgeTapWidth.toPx() }
     LaunchedEffect(uri, pageCount, initialPage) {
         pagerState.scrollToPage(initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0)))
     }
@@ -250,7 +253,22 @@ private fun PagedViewer(
             onRequest(page)
             PlaceholderPage()
         } else {
-            PdfPageImage(bitmap, scale, onScaleChange)
+            PdfPageImage(
+                bitmap = bitmap,
+                scale = scale,
+                onScaleChange = onScaleChange,
+                edgeTapWidthPx = edgeWidthPx,
+                onEdgeTap = { direction ->
+                    if (pageCount < 2) return@PdfPageImage
+                    val target = when (direction) {
+                        EdgeTapDirection.Previous -> (page - 1).coerceAtLeast(0)
+                        EdgeTapDirection.Next -> (page + 1).coerceAtMost(pageCount - 1)
+                    }
+                    if (target != page) {
+                        scope.launch { pagerState.animateScrollToPage(target) }
+                    }
+                }
+            )
         }
     }
 }
@@ -259,12 +277,16 @@ private fun PagedViewer(
 private fun PdfPageImage(
     bitmap: Bitmap,
     scale: Float,
-    onScaleChange: (Float) -> Unit
+    onScaleChange: (Float) -> Unit,
+    edgeTapWidthPx: Float? = null,
+    onEdgeTap: ((EdgeTapDirection) -> Unit)? = null
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     val scaleState = rememberUpdatedState(scale)
     val onScaleChangeState = rememberUpdatedState(onScaleChange)
+    val edgeTapWidthState = rememberUpdatedState(edgeTapWidthPx)
+    val onEdgeTapState = rememberUpdatedState(onEdgeTap)
 
     LaunchedEffect(scale, containerSize) {
         if (scale <= MinZoom || containerSize == IntSize.Zero) {
@@ -286,14 +308,30 @@ private fun PdfPageImage(
             .clipToBounds()
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val edgeTapDirection = resolveEdgeTapDirection(
+                        position = down.position,
+                        containerSize = containerSize,
+                        edgeTapWidthPx = edgeTapWidthState.value
+                    )
+                    var pastTouchSlop = false
+                    val startPosition = down.position
                     var gestureActive = true
                     while (gestureActive) {
                         val event = awaitPointerEvent()
+                        if (event.changes.size > 1) {
+                            pastTouchSlop = true
+                        }
                         val zoomChange = event.calculateZoom()
                         val panChange = event.calculatePan()
                         val currentScale = scaleState.value
                         val shouldConsume = event.changes.size > 1 || currentScale > MinZoom
+                        val positionDelta = event.changes.firstOrNull()?.position?.minus(startPosition)
+                        if (!pastTouchSlop && positionDelta != null) {
+                            if (positionDelta.getDistance() > viewConfiguration.touchSlop) {
+                                pastTouchSlop = true
+                            }
+                        }
                         if (shouldConsume) {
                             val newScale = (currentScale * zoomChange).coerceIn(MinZoom, MaxZoom)
                             val newOffset = clampOffset(offset + panChange, newScale, containerSize)
@@ -306,6 +344,9 @@ private fun PdfPageImage(
                             }
                         }
                         gestureActive = event.changes.any { it.pressed }
+                    }
+                    if (!pastTouchSlop && edgeTapDirection != null) {
+                        onEdgeTapState.value?.invoke(edgeTapDirection)
                     }
                 }
             }
@@ -342,6 +383,29 @@ private fun PlaceholderPage() {
 
 private const val MinZoom = 1f
 private const val MaxZoom = 4f
+private val EdgeTapWidth = 32.dp
+
+private enum class EdgeTapDirection {
+    Previous,
+    Next
+}
+
+private fun resolveEdgeTapDirection(
+    position: Offset,
+    containerSize: IntSize,
+    edgeTapWidthPx: Float?
+): EdgeTapDirection? {
+    val widthPx = containerSize.width.toFloat()
+    val edgeWidth = edgeTapWidthPx ?: return null
+    if (widthPx <= 0f || edgeWidth <= 0f) {
+        return null
+    }
+    return when {
+        position.x <= edgeWidth -> EdgeTapDirection.Previous
+        position.x >= widthPx - edgeWidth -> EdgeTapDirection.Next
+        else -> null
+    }
+}
 
 private fun clampOffset(offset: Offset, scale: Float, size: IntSize): Offset {
     if (scale <= MinZoom || size.width == 0 || size.height == 0) {
