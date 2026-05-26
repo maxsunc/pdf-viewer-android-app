@@ -120,12 +120,27 @@ Fields:
   - Revoke permission or delete a PDF and verify graceful handling.
 
 ## 14. Milestones
-1. Project setup with Compose and SAF picker.
-2. Vertical mode viewer with PdfRenderer rendering.
-3. DataStore persistence for last page.
-4. Recent list on start screen (limit 10).
-5. Mode toggle and paged mode viewer.
-6. Polish: jump-to-page, better error states, caching tweaks.
+1. Project setup with Compose and SAF picker. (done)
+2. Vertical mode viewer with PdfRenderer rendering. (done)
+3. DataStore persistence for last page. (done)
+4. Recent list on start screen (limit 10). (done)
+5. Mode toggle and paged mode viewer. (done)
+6. Polish: jump-to-page, better error states, caching tweaks. (planned)
+
+## 16. TODO Spec
+### Done
+- Project scaffolding (Gradle, Compose, manifest, theme, launcher icon).
+- SAF file picker and recents list (limited to 10).
+- PdfRenderer-based rendering with bitmap cache.
+- Vertical scroll viewer with last-page restore.
+- Paged mode viewer with toggle and per-document mode persistence.
+
+### Planned
+- Jump-to-page dialog/input.
+- Permission/file-missing error UI with cleanup of recents.
+- Rendering performance polish: prefetch next page, smarter cache sizing.
+- Optional: page count display in recents list polish (if missing).
+- Basic build/run verification on device.
 
 ## 15. Open Decisions (defaults)
 - Use PdfRenderer (built-in) rather than a third-party library.
