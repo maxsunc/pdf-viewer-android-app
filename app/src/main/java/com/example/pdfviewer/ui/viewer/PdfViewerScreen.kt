@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -77,6 +78,7 @@ fun PdfViewerScreen(
     val widthPx = context.resources.displayMetrics.widthPixels
     val scope = rememberCoroutineScope()
     var pagedCurrentPage by remember { mutableStateOf(state.initialPage) }
+    var zoomScale by remember(state.uri) { mutableStateOf(MinZoom) }
 
     LaunchedEffect(state.uri) {
         viewModel.load(state.uri)
@@ -161,6 +163,8 @@ fun PdfViewerScreen(
                     pageCount = pageCount,
                     listState = listState,
                     bitmaps = bitmaps,
+                    scale = zoomScale,
+                    onScaleChange = { zoomScale = it },
                     onRequest = { index -> viewModel.renderPage(state.uri, index, widthPx) }
                 )
             } else {
@@ -169,6 +173,8 @@ fun PdfViewerScreen(
                     bitmaps = bitmaps,
                     initialPage = state.initialPage,
                     uri = state.uri,
+                    scale = zoomScale,
+                    onScaleChange = { zoomScale = it },
                     onPageChange = { page ->
                         pagedCurrentPage = page
                         viewModel.updateProgress(
@@ -192,6 +198,8 @@ private fun VerticalViewer(
     pageCount: Int,
     listState: LazyListState,
     bitmaps: Map<Int, Bitmap>,
+    scale: Float,
+    onScaleChange: (Float) -> Unit,
     onRequest: (Int) -> Unit
 ) {
     LazyColumn(
@@ -208,7 +216,7 @@ private fun VerticalViewer(
                 onRequest(page)
                 PlaceholderPage()
             } else {
-                PdfPageImage(bitmap)
+                PdfPageImage(bitmap, scale, onScaleChange)
             }
         }
     }
@@ -220,6 +228,8 @@ private fun PagedViewer(
     bitmaps: Map<Int, Bitmap>,
     initialPage: Int,
     uri: android.net.Uri,
+    scale: Float,
+    onScaleChange: (Float) -> Unit,
     onPageChange: (Int) -> Unit,
     onRequest: (Int) -> Unit
 ) {
@@ -240,16 +250,29 @@ private fun PagedViewer(
             onRequest(page)
             PlaceholderPage()
         } else {
-            PdfPageImage(bitmap)
+            PdfPageImage(bitmap, scale, onScaleChange)
         }
     }
 }
 
 @Composable
-private fun PdfPageImage(bitmap: Bitmap) {
-    var scale by remember { mutableStateOf(MinZoom) }
+private fun PdfPageImage(
+    bitmap: Bitmap,
+    scale: Float,
+    onScaleChange: (Float) -> Unit
+) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    val scaleState = rememberUpdatedState(scale)
+    val onScaleChangeState = rememberUpdatedState(onScaleChange)
+
+    LaunchedEffect(scale, containerSize) {
+        if (scale <= MinZoom || containerSize == IntSize.Zero) {
+            offset = Offset.Zero
+        } else {
+            offset = clampOffset(offset, scale, containerSize)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -269,12 +292,13 @@ private fun PdfPageImage(bitmap: Bitmap) {
                         val event = awaitPointerEvent()
                         val zoomChange = event.calculateZoom()
                         val panChange = event.calculatePan()
-                        val shouldConsume = event.changes.size > 1 || scale > MinZoom
+                        val currentScale = scaleState.value
+                        val shouldConsume = event.changes.size > 1 || currentScale > MinZoom
                         if (shouldConsume) {
-                            val newScale = (scale * zoomChange).coerceIn(MinZoom, MaxZoom)
+                            val newScale = (currentScale * zoomChange).coerceIn(MinZoom, MaxZoom)
                             val newOffset = clampOffset(offset + panChange, newScale, containerSize)
-                            scale = newScale
                             offset = if (newScale == MinZoom) Offset.Zero else newOffset
+                            onScaleChangeState.value(newScale)
                             event.changes.forEach { change ->
                                 if (change.positionChanged()) {
                                     change.consumePositionChange()
