@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.pdfviewer"
-        minSdk = 21
+        minSdk = 35
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -64,6 +64,11 @@ dependencies {
     implementation("androidx.compose.foundation:foundation:1.6.8")
     implementation("androidx.compose.foundation:foundation-layout:1.6.8")
     implementation("com.google.android.material:material:1.12.0")
+    
+    // Fragment and PDF viewer dependencies
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
+    implementation("androidx.fragment:fragment-compose:1.8.9")
+    implementation("androidx.pdf:pdf-viewer-fragment:1.0.0-alpha07")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

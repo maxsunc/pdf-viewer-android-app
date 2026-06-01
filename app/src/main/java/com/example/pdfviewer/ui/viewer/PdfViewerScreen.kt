@@ -19,10 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,9 +71,7 @@ fun PdfViewerScreen(
     val context = LocalContext.current
     val pageCount by viewModel.pageCount.collectAsState()
     val bitmaps by viewModel.bitmaps.collectAsState()
-    val listState = rememberLazyListState()
     val widthPx = context.resources.displayMetrics.widthPixels
-    val scope = rememberCoroutineScope()
     var pagedCurrentPage by remember { mutableStateOf(state.initialPage) }
     var zoomScale by remember(state.uri) { mutableStateOf(MinZoom) }
 
@@ -85,30 +79,8 @@ fun PdfViewerScreen(
         viewModel.load(state.uri)
     }
 
-    LaunchedEffect(state.uri, pageCount, state.mode) {
-        if (pageCount > 0 && state.mode == ViewMode.VERTICAL) {
-            scope.launch {
-                listState.scrollToItem(state.initialPage.coerceIn(0, pageCount - 1))
-            }
-        }
-    }
-
     LaunchedEffect(state.uri, state.mode, state.initialPage) {
         pagedCurrentPage = state.initialPage
-    }
-
-    LaunchedEffect(listState.firstVisibleItemIndex, pageCount, state.mode) {
-        if (pageCount > 0 && state.mode == ViewMode.VERTICAL) {
-            val page = listState.firstVisibleItemIndex.coerceAtLeast(0)
-            viewModel.updateProgress(
-                uri = state.uri,
-                displayName = state.displayName,
-                page = page,
-                pageCount = pageCount,
-                mode = state.mode,
-                onUpdate = onUpdateProgress
-            )
-        }
     }
 
     DisposableEffect(state.uri) {
@@ -148,26 +120,19 @@ fun PdfViewerScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (pageCount > 0) {
-                val currentPage = if (state.mode == ViewMode.VERTICAL) {
-                    listState.firstVisibleItemIndex
-                } else {
-                    pagedCurrentPage
-                }.coerceIn(0, pageCount - 1)
+            if (pageCount > 0 && state.mode == ViewMode.PAGED) {
+                val currentPage = pagedCurrentPage.coerceIn(0, pageCount - 1)
                 Text(
                     "${currentPage + 1} / $pageCount",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
             if (state.mode == ViewMode.VERTICAL) {
-                VerticalViewer(
-                    pageCount = pageCount,
-                    listState = listState,
-                    bitmaps = bitmaps,
-                    scale = zoomScale,
-                    onScaleChange = { zoomScale = it },
-                    onRequest = { index -> viewModel.renderPage(state.uri, index, widthPx) }
-                )
+                androidx.fragment.compose.AndroidFragment<androidx.pdf.viewer.fragment.PdfViewerFragment>(
+                    modifier = Modifier.fillMaxSize()
+                ) { fragment ->
+                    fragment.documentUri = state.uri
+                }
             } else {
                 PagedViewer(
                     pageCount = pageCount,
@@ -194,34 +159,6 @@ fun PdfViewerScreen(
     }
 }
 
-@Composable
-private fun VerticalViewer(
-    pageCount: Int,
-    listState: LazyListState,
-    bitmaps: Map<Int, Bitmap>,
-    scale: Float,
-    onScaleChange: (Float) -> Unit,
-    onRequest: (Int) -> Unit
-) {
-    LazyColumn(
-        state = listState,
-        contentPadding = PaddingValues(vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(
-            items = (0 until pageCount).toList(),
-            key = { it }
-        ) { page ->
-            val bitmap = bitmaps[page]
-            if (bitmap == null) {
-                onRequest(page)
-                PlaceholderPage()
-            } else {
-                PdfPageImage(bitmap, scale, onScaleChange)
-            }
-        }
-    }
-}
 
 @Composable
 private fun PagedViewer(
@@ -339,7 +276,7 @@ private fun PdfPageImage(
                             onScaleChangeState.value(newScale)
                             event.changes.forEach { change ->
                                 if (change.positionChanged()) {
-                                    change.consumePositionChange()
+                                    change.consume()
                                 }
                             }
                         }
