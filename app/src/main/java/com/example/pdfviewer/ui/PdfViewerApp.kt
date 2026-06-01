@@ -1,6 +1,7 @@
 package com.example.pdfviewer.ui
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +45,9 @@ fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
     )
 
     if (viewerState != null) {
+        BackHandler {
+            viewModel.closeViewer()
+        }
         PdfViewerScreen(
             state = viewerState!!,
             onExit = { viewModel.closeViewer() },
