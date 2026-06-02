@@ -3,4 +3,7 @@
     <string name="theme_current">Theme: %1$s</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="view_mode_vertical">Vertical</string>
+    <string name="view_mode_paged">Paged</string>
+    <string name="settings_label">Settings</string>
 </resources>

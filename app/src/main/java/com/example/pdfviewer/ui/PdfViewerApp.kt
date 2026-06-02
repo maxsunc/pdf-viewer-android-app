@@ -64,7 +64,7 @@ fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("PDF Viewer") },
                 actions = {
-                    ThemeMenuAction(
+                    SettingsMenuAction(
                         themeMode = themeMode,
                         onThemeChange = viewModel::updateTheme
                     )
