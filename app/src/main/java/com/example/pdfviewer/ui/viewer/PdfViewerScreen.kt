@@ -2,6 +2,7 @@
 
 package com.example.pdfviewer.ui.viewer
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -51,12 +52,18 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import android.view.View
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.FragmentContainerView
+import androidx.pdf.viewer.fragment.PdfViewerFragment
 import com.example.pdfviewer.model.DocumentProgress
 import com.example.pdfviewer.model.ThemeMode
 import com.example.pdfviewer.model.ViewMode
 import com.example.pdfviewer.ui.ThemeMenuAction
 import kotlinx.coroutines.launch
 
+@SuppressLint("NewApi")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfViewerScreen(
@@ -74,6 +81,7 @@ fun PdfViewerScreen(
     val widthPx = context.resources.displayMetrics.widthPixels
     var pagedCurrentPage by remember { mutableStateOf(state.initialPage) }
     var zoomScale by remember(state.uri) { mutableStateOf(MinZoom) }
+    val fragmentContainerId = remember { View.generateViewId() }
 
     LaunchedEffect(state.uri) {
         viewModel.load(state.uri)
@@ -128,10 +136,33 @@ fun PdfViewerScreen(
                 )
             }
             if (state.mode == ViewMode.VERTICAL) {
-                androidx.fragment.compose.AndroidFragment<androidx.pdf.viewer.fragment.PdfViewerFragment>(
-                    modifier = Modifier.fillMaxSize()
-                ) { fragment ->
-                    fragment.documentUri = state.uri
+                val fragmentManager = (context as? FragmentActivity)?.supportFragmentManager
+                if (fragmentManager != null) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            FragmentContainerView(ctx).apply {
+                                id = fragmentContainerId
+                            }
+                        },
+                        update = { view ->
+                            val existingFragment = fragmentManager.findFragmentById(fragmentContainerId) as? PdfViewerFragment
+                            if (existingFragment == null) {
+                                val newFragment = PdfViewerFragment().apply {
+                                    documentUri = state.uri
+                                }
+                                fragmentManager.beginTransaction()
+                                    .replace(fragmentContainerId, newFragment)
+                                    .commit()
+                            } else {
+                                existingFragment.documentUri = state.uri
+                            }
+                        }
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Text("Error: Context is not a FragmentActivity")
+                    }
                 }
             } else {
                 PagedViewer(
