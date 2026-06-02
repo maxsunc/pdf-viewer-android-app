@@ -138,6 +138,14 @@ fun PdfViewerScreen(
             if (state.mode == ViewMode.VERTICAL) {
                 val fragmentManager = (context as? FragmentActivity)?.supportFragmentManager
                 if (fragmentManager != null) {
+                    DisposableEffect(Unit) {
+                        onDispose {
+                            val fragment = fragmentManager.findFragmentById(fragmentContainerId)
+                            if (fragment != null) {
+                                fragmentManager.beginTransaction().remove(fragment).commitAllowingStateLoss()
+                            }
+                        }
+                    }
                     AndroidView(
                         modifier = Modifier.fillMaxSize(),
                         factory = { ctx ->
