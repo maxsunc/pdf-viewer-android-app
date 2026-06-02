@@ -16,7 +16,8 @@ import com.example.pdfviewer.model.ThemeMode
 @Composable
 fun ThemeMenuAction(
     themeMode: ThemeMode,
-    onThemeChange: (ThemeMode) -> Unit
+    onThemeChange: (ThemeMode) -> Unit,
+    enabled: Boolean = true
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val themeLabel = when (themeMode) {
@@ -24,7 +25,10 @@ fun ThemeMenuAction(
         ThemeMode.DARK -> stringResource(R.string.theme_dark)
     }
 
-    TextButton(onClick = { menuOpen = true }) {
+    TextButton(
+        onClick = { menuOpen = true },
+        enabled = enabled
+    ) {
         Text(stringResource(R.string.theme_current, themeLabel))
     }
     DropdownMenu(

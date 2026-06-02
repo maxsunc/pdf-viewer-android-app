@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
@@ -122,7 +123,10 @@ fun PdfViewerScreen(
             TopAppBar(
                 title = { Text(state.displayName) },
                 navigationIcon = {
-                    IconButton(onClick = onExit) {
+                    IconButton(
+                        onClick = onExit,
+                        enabled = zoomScale <= MinZoom
+                    ) {
                         Text("Back")
                     }
                 },
@@ -132,12 +136,14 @@ fun PdfViewerScreen(
                         checked = state.mode == ViewMode.PAGED,
                         onCheckedChange = { checked ->
                             onModeChange(if (checked) ViewMode.PAGED else ViewMode.VERTICAL)
-                        }
+                        },
+                        enabled = zoomScale <= MinZoom
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     ThemeMenuAction(
                         themeMode = themeMode,
-                        onThemeChange = onThemeChange
+                        onThemeChange = onThemeChange,
+                        enabled = zoomScale <= MinZoom
                     )
                 }
             )
@@ -147,6 +153,7 @@ fun PdfViewerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .zIndex(if (zoomScale > MinZoom) 1f else 0f)
         ) {
             if (pageCount > 0) {
                 val currentPage = if (state.mode == ViewMode.VERTICAL) {
@@ -299,13 +306,13 @@ private fun PdfPageImage(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .zIndex(if (scale > MinZoom) 1f else 0f)
             .onSizeChanged { size ->
                 containerSize = size
                 if (scale > MinZoom) {
                     offset = clampOffset(offset, scale, size)
                 }
             }
-            .clipToBounds()
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
