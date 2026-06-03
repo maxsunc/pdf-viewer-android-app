@@ -13,21 +13,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -55,11 +56,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.pdfviewer.R
 import com.example.pdfviewer.model.DocumentProgress
 import com.example.pdfviewer.model.ThemeMode
 import com.example.pdfviewer.model.ViewMode
-import com.example.pdfviewer.ui.ThemeMenuAction
+import com.example.pdfviewer.ui.SettingsMenuAction
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +72,8 @@ fun PdfViewerScreen(
     onExit: () -> Unit,
     onUpdateProgress: (DocumentProgress) -> Unit,
     onModeChange: (ViewMode) -> Unit,
+    onToggleBookmark: (Int) -> Unit,
+    onNavigateToPage: (Int) -> Unit = {},
     themeMode: ThemeMode,
     onThemeChange: (ThemeMode) -> Unit,
     viewModel: PdfViewerScreenViewModel = viewModel()
@@ -81,6 +86,7 @@ fun PdfViewerScreen(
     val scope = rememberCoroutineScope()
     var pagedCurrentPage by remember { mutableStateOf(state.initialPage) }
     var zoomScale by remember(state.uri) { mutableStateOf(MinZoom) }
+    var targetPage by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(state.uri) {
         viewModel.load(state.uri)
@@ -107,6 +113,7 @@ fun PdfViewerScreen(
                 page = page,
                 pageCount = pageCount,
                 mode = state.mode,
+                bookmarks = state.bookmarks,
                 onUpdate = onUpdateProgress
             )
         }
@@ -131,21 +138,52 @@ fun PdfViewerScreen(
                     }
                 },
                 actions = {
-                    Text(if (state.mode == ViewMode.VERTICAL) "Vertical" else "Paged")
-                    Switch(
-                        checked = state.mode == ViewMode.PAGED,
-                        onCheckedChange = { checked ->
-                            onModeChange(if (checked) ViewMode.PAGED else ViewMode.VERTICAL)
+                    val currentPage = if (state.mode == ViewMode.VERTICAL) {
+                        listState.firstVisibleItemIndex
+                    } else {
+                        pagedCurrentPage
+                    }.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+
+                    val isBookmarked = state.bookmarks.contains(currentPage)
+
+                    IconButton(
+                        onClick = { onToggleBookmark(currentPage) },
+                        enabled = zoomScale <= MinZoom && pageCount > 0
+                    ) {
+                        Icon(
+                            imageVector = if (isBookmarked) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = if (isBookmarked) {
+                                stringResource(R.string.bookmark_remove)
+                            } else {
+                                stringResource(R.string.bookmark_add)
+                            },
+                            tint = if (isBookmarked) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+
+                    SettingsMenuAction(
+                        themeMode = themeMode,
+                        onThemeChange = onThemeChange,
+                        viewMode = state.mode,
+                        onViewModeChange = onModeChange,
+                        bookmarks = state.bookmarks,
+                        onNavigateToBookmark = { page ->
+                            targetPage = page
+                            scope.launch {
+                                if (state.mode == ViewMode.VERTICAL) {
+                                    listState.animateScrollToItem(page)
+                                }
+                            }
+                            onNavigateToPage(page)
                         },
                         enabled = zoomScale <= MinZoom
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    ThemeMenuAction(
-                        themeMode = themeMode,
-                        onThemeChange = onThemeChange,
-                        enabled = zoomScale <= MinZoom
-                    )
                 }
+
             )
         }
     ) { padding ->
@@ -191,9 +229,11 @@ fun PdfViewerScreen(
                             page = page,
                             pageCount = pageCount,
                             mode = state.mode,
+                            bookmarks = state.bookmarks,
                             onUpdate = onUpdateProgress
                         )
                     },
+                    targetPage = targetPage,
                     onRequest = { index -> viewModel.renderPage(state.uri, index, widthPx) }
                 )
             }
@@ -239,11 +279,19 @@ private fun PagedViewer(
     scale: Float,
     onScaleChange: (Float) -> Unit,
     onPageChange: (Int) -> Unit,
+    targetPage: Int? = null,
     onRequest: (Int) -> Unit
 ) {
     val pagerState = rememberPagerStateSafe(initialPage, pageCount)
     val scope = rememberCoroutineScope()
     val edgeWidthPx = with(LocalDensity.current) { EdgeTapWidth.toPx() }
+
+    LaunchedEffect(targetPage) {
+        if (targetPage != null) {
+            pagerState.animateScrollToPage(targetPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0)))
+        }
+    }
+
     LaunchedEffect(uri, pageCount, initialPage) {
         pagerState.scrollToPage(initialPage.coerceIn(0, (pageCount - 1).coerceAtLeast(0)))
     }

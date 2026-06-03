@@ -39,6 +39,7 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
     )
     private var lastPageInSession: Int = 0
     private var lastPageCountInSession: Int = 0
+    private var lastBookmarksInSession: Set<Int> = emptySet()
 
     fun persistPermission(uri: Uri) {
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -57,15 +58,18 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
                 lastPage = 0,
                 pageCount = 0,
                 lastMode = ViewMode.VERTICAL,
-                lastAccessed = System.currentTimeMillis()
+                lastAccessed = System.currentTimeMillis(),
+                bookmarks = emptySet()
             )
             lastPageInSession = initial.lastPage
             lastPageCountInSession = initial.pageCount
+            lastBookmarksInSession = initial.bookmarks
             _viewerState.value = ViewerState(
                 uri = uri,
                 displayName = displayName,
                 initialPage = initial.lastPage,
-                mode = initial.lastMode
+                mode = initial.lastMode,
+                bookmarks = initial.bookmarks
             )
         }
     }
@@ -81,12 +85,17 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
     fun updateProgress(progress: DocumentProgress) {
         lastPageInSession = progress.lastPage
         lastPageCountInSession = progress.pageCount
+        lastBookmarksInSession = progress.bookmarks
         viewModelScope.launch { store.upsert(progress) }
     }
 
     fun updateMode(mode: ViewMode) {
         val current = _viewerState.value ?: return
-        _viewerState.value = current.copy(mode = mode, initialPage = lastPageInSession)
+        _viewerState.value = current.copy(
+            mode = mode, 
+            initialPage = lastPageInSession,
+            bookmarks = lastBookmarksInSession
+        )
         viewModelScope.launch {
             store.upsert(
                 DocumentProgress(
@@ -95,7 +104,32 @@ class PdfViewerViewModel(application: Application) : AndroidViewModel(applicatio
                     lastPage = lastPageInSession,
                     pageCount = lastPageCountInSession,
                     lastMode = mode,
-                    lastAccessed = System.currentTimeMillis()
+                    lastAccessed = System.currentTimeMillis(),
+                    bookmarks = lastBookmarksInSession
+                )
+            )
+        }
+    }
+
+    fun toggleBookmark(page: Int) {
+        val current = _viewerState.value ?: return
+        val newBookmarks = if (current.bookmarks.contains(page)) {
+            current.bookmarks - page
+        } else {
+            current.bookmarks + page
+        }
+        lastBookmarksInSession = newBookmarks
+        _viewerState.value = current.copy(bookmarks = newBookmarks)
+        viewModelScope.launch {
+            store.upsert(
+                DocumentProgress(
+                    uri = current.uri.toString(),
+                    displayName = current.displayName,
+                    lastPage = lastPageInSession,
+                    pageCount = lastPageCountInSession,
+                    lastMode = current.mode,
+                    lastAccessed = System.currentTimeMillis(),
+                    bookmarks = newBookmarks
                 )
             )
         }

@@ -61,6 +61,7 @@ class PdfViewerScreenViewModel(application: Application) : AndroidViewModel(appl
         page: Int,
         pageCount: Int,
         mode: ViewMode,
+        bookmarks: Set<Int>,
         onUpdate: (DocumentProgress) -> Unit
     ) {
         onUpdate(
@@ -70,7 +71,8 @@ class PdfViewerScreenViewModel(application: Application) : AndroidViewModel(appl
                 lastPage = page,
                 pageCount = pageCount,
                 lastMode = mode,
-                lastAccessed = System.currentTimeMillis()
+                lastAccessed = System.currentTimeMillis(),
+                bookmarks = bookmarks
             )
         )
     }

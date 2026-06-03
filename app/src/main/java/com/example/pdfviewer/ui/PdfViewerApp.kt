@@ -53,6 +53,7 @@ fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
             onExit = { viewModel.closeViewer() },
             onUpdateProgress = { viewModel.updateProgress(it) },
             onModeChange = { viewModel.updateMode(it) },
+            onToggleBookmark = { viewModel.toggleBookmark(it) },
             themeMode = themeMode,
             onThemeChange = viewModel::updateTheme
         )
@@ -64,7 +65,7 @@ fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
             TopAppBar(
                 title = { Text("PDF Viewer") },
                 actions = {
-                    ThemeMenuAction(
+                    SettingsMenuAction(
                         themeMode = themeMode,
                         onThemeChange = viewModel::updateTheme
                     )
