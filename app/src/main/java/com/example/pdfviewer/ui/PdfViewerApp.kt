@@ -53,6 +53,7 @@ fun PdfViewerApp(viewModel: PdfViewerViewModel = viewModel()) {
             onExit = { viewModel.closeViewer() },
             onUpdateProgress = { viewModel.updateProgress(it) },
             onModeChange = { viewModel.updateMode(it) },
+            onToggleBookmark = { viewModel.toggleBookmark(it) },
             themeMode = themeMode,
             onThemeChange = viewModel::updateTheme
         )

@@ -15,5 +15,6 @@ data class DocumentProgress(
     val lastPage: Int,
     val pageCount: Int,
     val lastMode: ViewMode,
-    val lastAccessed: Long
+    val lastAccessed: Long,
+    val bookmarks: Set<Int> = emptySet()
 )
