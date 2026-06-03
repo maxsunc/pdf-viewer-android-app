@@ -136,7 +136,7 @@ fun SettingsMenuAction(
                 if (bookmarks.isEmpty()) {
                     Text(stringResource(R.string.bookmarks_empty))
                 } else {
-                    val sortedBookmarks = bookmarks.toList().sorted()
+                    val sortedBookmarks = bookmarks.toList().sortedDescending()
                     LazyColumn {
                         items(sortedBookmarks) { page ->
                             TextButton(
